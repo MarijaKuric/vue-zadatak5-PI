@@ -4,17 +4,6 @@
       <h2>Registracija</h2>
       <form @submit.prevent="handleSignUp" class="signup-form">
         <div class="form-group">
-          <label for="username">Korisničko ime:</label>
-          <input 
-            type="text" 
-            id="username" 
-            v-model="username" 
-            required 
-            placeholder="Unesite korisničko ime"
-          />
-        </div>
-        
-        <div class="form-group">
           <label for="email">Email:</label>
           <input 
             type="email" 
@@ -32,7 +21,7 @@
             id="password" 
             v-model="password" 
             required 
-            placeholder="Unesite lozinku"
+            placeholder="Unesite lozinku (min. 6 znakova)"
           />
         </div>
         
@@ -60,23 +49,20 @@
 </template>
 
 <script>
-import { useUserStore } from '../stores/userStore';
-import { useRouter } from 'vue-router';
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { createUserWithEmailAndPassword, auth } from '../firebase';
 
 export default {
   name: 'SignUpView',
   setup() {
-    const userStore = useUserStore();
     const router = useRouter();
-
-    const username = ref('');
     const email = ref('');
     const password = ref('');
     const confirmPassword = ref('');
     const error = ref('');
 
-    const handleSignUp = () => {
+    const handleSignUp = async () => {
       error.value = '';
 
       if (password.value !== confirmPassword.value) {
@@ -84,21 +70,21 @@ export default {
         return;
       }
 
+      if (password.value.length < 6) {
+        error.value = 'Lozinka mora imati najmanje 6 znakova';
+        return;
+      }
+
       try {
-        userStore.register({
-          username: username.value,
-          email: email.value,
-          password: password.value
-        });
-        
+        await createUserWithEmailAndPassword(auth, email.value, password.value);
         router.push('/user');
       } catch (err) {
-        error.value = err.message;
+        error.value = 'Greška pri registraciji: ' + err.message;
+        console.error(err);
       }
     };
 
     return {
-      username,
       email,
       password,
       confirmPassword,

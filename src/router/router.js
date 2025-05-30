@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { useUserStore } from '../stores/userStore';
-
+import { auth } from '../firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 import SignUpView from '@/views/SignUpView.vue';
 import LogInView from '@/views/LogInView.vue';
@@ -34,12 +34,21 @@ const router = createRouter({
   ]
 });
 
-router.beforeEach((to, from, next) => {
-  const userStore = useUserStore();
+const getCurrentUser = () => {
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
+};
 
-  if (to.meta.requiresAuth && !userStore.currentUser) {
+router.beforeEach(async (to, from, next) => {
+  const user = await getCurrentUser();
+  
+  if (to.meta.requiresAuth && !user) {
     next('/login');
-  } else if ((to.name === 'login' || to.name === 'signup') && userStore.currentUser) {
+  } else if ((to.name === 'login' || to.name === 'signup') && user) {
     next('/user');
   } else {
     next();

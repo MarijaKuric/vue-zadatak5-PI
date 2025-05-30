@@ -38,32 +38,34 @@
 </template>
 
 <script>
-import { useUserStore } from '../stores/userStore';
-import { useRouter } from 'vue-router';
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { signInWithEmailAndPassword, auth } from '../firebase';
 
 export default {
   name: 'LogInView',
   setup() {
-    const userStore = useUserStore();
     const router = useRouter();
-
     const email = ref('');
     const password = ref('');
     const error = ref('');
 
-    const handleLogin = () => {
+    const handleLogin = async () => {
       error.value = '';
-
       try {
-        userStore.login({
-          email: email.value,
-          password: password.value
-        });
+        console.log("Pokušavam se prijaviti sa:", email.value);
         
+        const userCredential = await signInWithEmailAndPassword(
+          auth,
+          email.value, 
+          password.value
+        );
+        
+        console.log("Uspješna prijava:", userCredential.user);
         router.push('/user');
       } catch (err) {
-        error.value = err.message;
+        console.error("Detalji greške:", err.code, err.message);
+        error.value = 'Pogrešan email ili lozinka';
       }
     };
 

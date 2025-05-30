@@ -4,8 +4,7 @@
       <h2>Korisnički profil</h2>
       
       <div class="user-info">
-        <p><strong>Korisničko ime:</strong> {{ userStore.currentUser.username }}</p>
-        <p><strong>Email:</strong> {{ userStore.currentUser.email }}</p>
+        <p><strong>Email:</strong> {{ user?.email }}</p>
       </div>
       
       <div class="change-password">
@@ -29,7 +28,7 @@
               id="newPassword" 
               v-model="newPassword" 
               required 
-              placeholder="Unesite novu lozinku"
+              placeholder="Unesite novu lozinku (min. 6 znakova)"
             />
           </div>
           
@@ -75,16 +74,22 @@
 </template>
 
 <script>
-import { useUserStore } from '../stores/userStore';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ref } from 'vue';
+import { 
+  auth,
+  signOut,
+  updatePassword,
+  deleteUser,
+  reauthenticateWithCredential,
+  EmailAuthProvider
+} from '../firebase';
 
 export default {
   name: 'UserView',
   setup() {
-    const userStore = useUserStore();
     const router = useRouter();
-
+    const user = ref(null);
     const currentPassword = ref('');
     const newPassword = ref('');
     const confirmNewPassword = ref('');
@@ -93,7 +98,14 @@ export default {
     const changePasswordSuccess = ref('');
     const deleteAccountError = ref('');
 
-    const handleChangePassword = () => {
+    onMounted(() => {
+      user.value = auth.currentUser;
+      if (!user.value) {
+        router.push('/login');
+      }
+    });
+
+    const handleChangePassword = async () => {
       changePasswordError.value = '';
       changePasswordSuccess.value = '';
 
@@ -102,28 +114,32 @@ export default {
         return;
       }
 
+      if (newPassword.value.length < 6) {
+        changePasswordError.value = 'Lozinka mora imati najmanje 6 znakova';
+        return;
+      }
+
       try {
-        userStore.changePassword({
-          currentPassword: currentPassword.value,
-          newPassword: newPassword.value
-        });
-
-        changePasswordSuccess.value = 'Lozinka je uspješno promijenjena! Prijavite se ponovno.';
-
+        const credential = EmailAuthProvider.credential(
+          user.value.email, 
+          currentPassword.value
+        );
+        
+        await reauthenticateWithCredential(user.value, credential);
+        await updatePassword(user.value, newPassword.value);
+        
+        changePasswordSuccess.value = 'Lozinka je uspješno promijenjena!';
+        
         currentPassword.value = '';
         newPassword.value = '';
         confirmNewPassword.value = '';
-
-        setTimeout(() => {
-          userStore.logout();
-          router.push('/login');
-        }, 2000);
       } catch (err) {
-        changePasswordError.value = err.message;
+        changePasswordError.value = 'Greška pri promjeni lozinke: ' + err.message;
+        console.error(err);
       }
     };
 
-    const handleDeleteAccount = () => {
+    const handleDeleteAccount = async () => {
       deleteAccountError.value = '';
 
       if (!confirm('Jeste li sigurni da želite izbrisati svoj račun? Ova radnja je nepovratna.')) {
@@ -131,20 +147,32 @@ export default {
       }
 
       try {
-        userStore.deleteAccount(deletePassword.value);
+        const credential = EmailAuthProvider.credential(
+          user.value.email, 
+          deletePassword.value
+        );
+        
+        await reauthenticateWithCredential(user.value, credential);
+        await deleteUser(user.value);
+        
         router.push('/login');
       } catch (err) {
-        deleteAccountError.value = err.message;
+        deleteAccountError.value = 'Greška pri brisanju računa: ' + err.message;
+        console.error(err);
       }
     };
 
-    const handleLogout = () => {
-      userStore.logout();
-      router.push('/login');
+    const handleLogout = async () => {
+      try {
+        await signOut(auth);
+        router.push('/login');
+      } catch (err) {
+        console.error(err);
+      }
     };
 
     return {
-      userStore,
+      user,
       currentPassword,
       newPassword,
       confirmNewPassword,
